@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ThePlanktons — Indha Nodi</title>
+<style>
+:root{--white:#effaff;--muted:rgba(225,245,255,.66);--cyan:#78e9ff}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#02070b;scroll-behavior:smooth}
+body{background:#02070b;color:var(--white);overflow-x:hidden;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+
+/* 2D Ripple Overlay Canvas sitting directly over the 3D Ocean */
+#ripple-overlay{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:2;pointer-events:none}
+#ocean{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;touch-action:none}
+
+.scroll-space{height:315vh;position:relative;z-index:1;pointer-events:none}
+.content{position:fixed;inset:0;z-index:5;pointer-events:none}
+.panel{position:absolute;width:min(720px,calc(100vw - 44px));opacity:0;visibility:hidden;transition:opacity .7s ease,transform .9s cubic-bezier(.2,.8,.2,1),visibility .7s ease;pointer-events:none}
+.panel.active{opacity:1;visibility:visible;pointer-events:auto}
+.brand-img{display:block;width:min(480px,85vw);height:auto;margin-bottom:24px;filter:drop-shadow(0 0 12px rgba(120,233,255,0.35))}
+.hero{left:7vw;top:53%;transform:translate3d(0,48px,0)}
+.hero.active{transform:translate3d(0,-50%,0)}
+.eyebrow{color:var(--cyan);font-size:10px;font-weight:700;letter-spacing:.34em;text-transform:uppercase;margin-bottom:17px}
+h1{font-size:clamp(50px,7.7vw,110px);line-height:.87;letter-spacing:-.065em;font-weight:700}
+.subtitle{max-width:470px;margin-top:26px;color:var(--muted);font-size:15px;line-height:1.8}
+.track{left:50%;top:50%;transform:translate3d(-50%,45px,0);display:flex;flex-direction:column;gap:20px}
+.track.active{transform:translate3d(-50%,-50%,0)}
+.track-card{padding:42px 44px;background:rgba(0,8,14,.35);border:1px solid rgba(120,233,255,0.1);backdrop-filter:blur(8px);border-radius:12px}
+.track-card.coming-soon{padding:28px 44px;opacity:0.85;border-style:dashed}
+.track-title{font-size:clamp(48px,6.5vw,82px);line-height:.9;letter-spacing:-.06em;margin:5px 0 20px}
+.credits{display:flex;flex-wrap:wrap;gap:8px 30px;margin-bottom:32px;color:var(--muted);font-size:14px}
+.credits strong{color:var(--white);font-weight:500;margin-left:5px}
+.actions{display:flex;flex-wrap:wrap;gap:12px}
+.button{height:46px;min-width:130px;padding:0 22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(225,248,255,.27);border-radius:999px;color:var(--white);text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;transition:.25s}
+.button:hover{background:rgba(225,248,255,.1);border-color:rgba(225,248,255,.75);transform:translateY(-2px)}
+.footer{left:7vw;bottom:8vh;transform:translate3d(0,45px,0)}
+.footer.active{transform:translate3d(0,0,0)}
+.footer .brand-img{width:min(380px,75vw);margin-bottom:23px}
+h2{font-size:clamp(52px,7vw,96px);line-height:.9;letter-spacing:-.065em}
+.footer-copy{max-width:430px;margin-top:23px;color:var(--muted);font-size:14px;line-height:1.75}
+.contact{display:flex;flex-wrap:wrap;gap:12px 28px;margin-top:27px}
+.contact a{color:var(--white);font-size:13px;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.28);padding-bottom:5px;transition:border-color 0.2s}
+.contact a:hover{border-color:var(--cyan)}
+.scroll-hint{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:10;display:flex;flex-direction:column;align-items:center;gap:10px;color:rgba(235,250,255,.72);font-size:9px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;transition:opacity .5s}
+.scroll-line{width:1px;height:48px;background:rgba(255,255,255,.16);overflow:hidden}
+.scroll-line:after{content:"";display:block;width:1px;height:45%;background:var(--cyan);animation:scrollLine 1.6s ease-in-out infinite}
+@keyframes scrollLine{0%{transform:translateY(-120%)}50%,100%{transform:translateY(260%)}}
+#progress{position:fixed;right:24px;top:50%;width:1px;height:85px;transform:translateY(-50%);background:rgba(255,255,255,.12);z-index:10}
+#progress i{display:block;width:1px;height:0;background:var(--cyan)}
+.depth-label{position:fixed;right:24px;top:calc(50% + 53px);z-index:10;color:rgba(230,250,255,.35);font-size:8px;letter-spacing:.22em;writing-mode:vertical-rl;text-transform:uppercase}
+@media(max-width:700px){.scroll-space{height:300vh}.hero,.footer{left:22px}.hero{top:55%}.track{width:calc(100vw - 28px)}.track-card{padding:26px 20px}.footer{bottom:7vh}#progress,.depth-label{display:none}.scroll-hint{bottom:21px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.scroll-line:after{animation:none}}
+</style>
+</head>
+<body>
+
+<!-- 2D Ripple Canvas Overlay -->
+<canvas id="ripple-overlay"></canvas>
+
+<!-- 3D WebGL Ocean Canvas -->
+<canvas id="ocean"></canvas>
+
+<div class="scroll-space"></div>
+
+<main class="content">
+<section class="panel hero active" id="heroPanel">
+<img class="brand-img" src="Planktons.png" id="mainLogo" alt="ThePlanktons Logo">
+<h1>Welcome to<br>ThePlanktons</h1>
+<p class="subtitle"> Discover <em>Indha Nodi</em>.</p>
+</section>
+
+<section class="panel track" id="trackPanel">
+<div class="track-card">
+<div class="eyebrow">Track 01</div>
+<div class="track-title">Indha Nodi</div>
+<div class="credits"><span>Composer <strong>Thendral</strong></span><span>Lyricist <strong>Thendral</strong></span></div>
+<div class="actions">
+<a class="button" href="https://youtu.be/W8N0t1wNggw?si=VkLtmVRic3KNOfOJ" target="_blank" rel="noopener noreferrer">YouTube ↗</a>
+<a class="button" href="https://open.spotify.com/artist/2ZL7hna1tFP96Ggbt090Su" target="_blank" rel="noopener noreferrer">Spotify ↗</a>
+<a class="button" href="https://music.apple.com/in/album/indha-nodi-single/1770931578" target="_blank" rel="noopener noreferrer">Apple Music ↗</a>
+</div>
+</div>
+
+<div class="track-card coming-soon">
+<div class="eyebrow">Track 02</div>
+<div class="track-title" style="font-size: clamp(28px, 4vw, 42px); margin: 0;">Coming Soon</div>
+</div>
+</section>
+
+<section class="panel footer" id="footerPanel">
+<img class="brand-img" src="Planktons.png" id="footerLogo" alt="ThePlanktons Logo">
+<h2>Stay Tuned</h2>
+<p class="footer-copy"> Keep listening. More releases are coming.</p>
+<div class="contact">
+<a href="mailto:Theplanktonsmusic@gmail.com">Theplanktonsmusic@gmail.com</a>
+<a href="https://www.instagram.com/theplanktonsmusic" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
+<a href="https://www.youtube.com/@ThePlanktonsmusic" target="_blank" rel="noopener noreferrer">YouTube Channel ↗</a>
+</div>
+</section>
+</main>
+
+<div class="scroll-hint" id="hint"><span>Scroll to dive</span><div class="scroll-line"></div></div>
+<div id="progress"><i></i></div>
+<div class="depth-label">Surface → Abyss</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=>{
+"use strict";
+
+/* ---------- 1. 2D OVERLAY RIPPLE CANVAS SETUP ---------- */
+const rippleCanvas = document.getElementById("ripple-overlay");
+const rctx = rippleCanvas.getContext("2d");
+
+function resizeRippleCanvas() {
+  rippleCanvas.width = window.innerWidth;
+  rippleCanvas.height = window.innerHeight;
+}
+resizeRippleCanvas();
+
+const canvasRipples = [];
+
+class CanvasRipple {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 0;
+    this.maxRadius = Math.max(window.innerWidth, window.innerHeight) * 0.38;
+    this.speed = 4.2;
+    this.opacity = 1;
+  }
+
+  update() {
+    this.radius += this.speed;
+    this.opacity = 1 - (this.radius / this.maxRadius);
+  }
+
+  draw(context) {
+    if (this.opacity <= 0) return;
+    context.save();
+    
+    context.beginPath();
+    context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    context.strokeStyle = `rgba(120, 233, 255, ${this.opacity * 0.85})`;
+    context.lineWidth = 2.5;
+    context.shadowColor = '#78e9ff';
+    context.shadowBlur = 10;
+    context.stroke();
+
+    if (this.radius > 12) {
+      context.beginPath();
+      context.arc(this.x, this.y, this.radius - 12, 0, Math.PI * 2);
+      context.strokeStyle = `rgba(225, 245, 255, ${this.opacity * 0.4})`;
+      context.lineWidth = 1.5;
+      context.shadowBlur = 4;
+      context.stroke();
+    }
+
+    context.restore();
+  }
+}
+
+window.addEventListener("pointerdown", (e) => {
+  canvasRipples.push(new CanvasRipple(e.clientX, e.clientY));
+}, {passive: true});
+
+
+/* ---------- 2. THREE.JS 3D OCEAN SCENE ---------- */
+const canvas=document.getElementById("ocean");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(61,innerWidth/innerHeight,.05,240);
+const clock=new THREE.Clock();
+const FLOOR_Y=-34;
+
+const surfaceGroup=new THREE.Group();
+scene.add(surfaceGroup);
+
+/* ---------- realistic sky (smooth sun) ---------- */
+const skyCanvas=document.createElement("canvas");
+skyCanvas.width=1024; skyCanvas.height=1024;
+const sctx=skyCanvas.getContext("2d");
+const grad=sctx.createLinearGradient(0,0,0,1024);
+grad.addColorStop(0,"#122f46");
+grad.addColorStop(.28,"#376f89");
+grad.addColorStop(.52,"#82aeb3");
+grad.addColorStop(.67,"#b8c5b9");
+grad.addColorStop(1,"#719ca3");
+sctx.fillStyle=grad;sctx.fillRect(0,0,1024,1024);
+
+const sunGlow=sctx.createRadialGradient(690,260,5,690,260,260);
+sunGlow.addColorStop(0,"rgba(255,248,211,.3)");
+sunGlow.addColorStop(.15,"rgba(255,245,202,.15)");
+sunGlow.addColorStop(.5,"rgba(255,237,185,.03)");
+sunGlow.addColorStop(1,"rgba(255,230,180,0)");
+sctx.fillStyle=sunGlow;sctx.fillRect(0,0,1024,1024);
+const skyTexture=new THREE.CanvasTexture(skyCanvas);
+
+const skyGeo=new THREE.SphereGeometry(150,32,16);
+const skyMat=new THREE.MeshBasicMaterial({map:skyTexture,side:THREE.BackSide,depthWrite:false});
+const sky=new THREE.Mesh(skyGeo,skyMat);
+scene.add(sky);
+
+/* ---------- sun sprite ---------- */
+const sunSpriteCanvas=document.createElement("canvas");
+sunSpriteCanvas.width=sunSpriteCanvas.height=256;
+const sunCtx=sunSpriteCanvas.getContext("2d");
+const sg=sunCtx.createRadialGradient(128,128,0,128,128,128);
+sg.addColorStop(0,"rgba(255,249,218,.3)");
+sg.addColorStop(.2,"rgba(255,244,204,.15)");
+sg.addColorStop(1,"rgba(255,236,180,0)");
+sunCtx.fillStyle=sg;sunCtx.fillRect(0,0,256,256);
+const sunTex=new THREE.CanvasTexture(sunSpriteCanvas);
+const sunSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:sunTex,transparent:true,depthWrite:false}));
+sunSprite.position.set(-24,18,-45);
+sunSprite.scale.setScalar(6);
+scene.add(sunSprite);
+
+/* ---------- subtle atmospheric horizon ---------- */
+const horizonCanvas=document.createElement("canvas");
+horizonCanvas.width=1024; horizonCanvas.height=512;
+const hctx=horizonCanvas.getContext("2d");
+const hg=hctx.createLinearGradient(0,0,0,512);
+hg.addColorStop(0,"rgba(220,239,234,0)");
+hg.addColorStop(.48,"rgba(204,226,224,.035)");
+hg.addColorStop(.72,"rgba(190,218,218,.075)");
+hg.addColorStop(1,"rgba(120,178,185,0)");
+hctx.fillStyle=hg; hctx.fillRect(0,0,1024,512);
+const horizonTex=new THREE.CanvasTexture(horizonCanvas);
+const horizonMat=new THREE.SpriteMaterial({
+  map:horizonTex,transparent:true,depthWrite:false,opacity:.75
+});
+const horizon=new THREE.Sprite(horizonMat);
+horizon.position.set(0,1.7,-65);
+horizon.scale.set(120,32,1);
+scene.add(horizon);
+
+/* ---------- ocean surface shader ---------- */
+const surfaceGeo=new THREE.PlaneGeometry(190,190,160,160);
+const surfaceMat=new THREE.ShaderMaterial({
+transparent:true,side:THREE.DoubleSide,depthWrite:false,
+uniforms:{time:{value:0},depth:{value:0}},
+vertexShader:`
+uniform float time;
+varying vec3 vWorld;
+varying vec2 vUv;
+void main(){
+ vUv=uv;
+ vec3 p=position;
+ float a=sin(p.x*.095+time*.62)*.34;
+ float b=sin(p.y*.13-time*.43)*.24;
+ float c=sin((p.x+p.y)*.055+time*.38)*.18;
+ float d=sin(p.x*.28+p.y*.09+time*.72)*.055;
+ p.z+=a+b+c+d;
+ vec4 wp=modelMatrix*vec4(p,1.);
+ vWorld=wp.xyz;
+ gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+}`,
+fragmentShader:`
+uniform float time;
+uniform float depth;
+varying vec3 vWorld;
+varying vec2 vUv;
+void main(){
+ float crest=sin(vWorld.x*.42+sin(vWorld.z*.22+time*.7)*1.8);
+ crest*=sin(vWorld.z*.31-time*.48);
+ float fine=sin(vWorld.x*1.9+time*.9)*sin(vWorld.z*1.35-time*.6);
+ vec3 shallow=vec3(.026,.17,.21);
+ vec3 deep=vec3(.004,.045,.065);
+ vec3 col=mix(shallow,deep,depth);
+ col+=max(crest,0.)*.019*(1.-depth);
+ col+=max(fine,0.)*.007*(1.-depth);
+ float alpha=.68*(1.-depth);
+ gl_FragColor=vec4(col,alpha);
+}`
+});
+const surface=new THREE.Mesh(surfaceGeo,surfaceMat);
+surface.rotation.x=-Math.PI/2;
+surface.position.y=.15;
+scene.add(surface);
+
+/* ---------- underwater floor ---------- */
+const floorGeo=new THREE.PlaneGeometry(180,180,120,120);
+const floorMat=new THREE.MeshStandardMaterial({color:0x211d17,roughness:.96,metalness:0});
+const floor=new THREE.Mesh(floorGeo,floorMat);
+floor.rotation.x=-Math.PI/2;
+floor.position.y=FLOOR_Y;
+scene.add(floor);
+const fp=floor.geometry.attributes.position;
+for(let i=0;i<fp.count;i++){
+ const x=fp.getX(i),y=fp.getY(i);
+ fp.setZ(i,Math.sin(x*.11)*.5+Math.sin(y*.075)*.7+Math.sin((x+y)*.045)*.8);
+}
+fp.needsUpdate=true;floor.geometry.computeVertexNormals();
+
+/* ---------- lighting ---------- */
+const hemi=new THREE.HemisphereLight(0x9edee5,0x02090d,1.0);
+scene.add(hemi);
+const sunLight=new THREE.DirectionalLight(0xfff2cf,0.85);
+sunLight.position.set(-25,35,15);scene.add(sunLight);
+
+/* ---------- rocks ---------- */
+const rockMat=new THREE.MeshStandardMaterial({color:0x171a18,roughness:1});
+function rock(x,z,s){
+ const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,2),rockMat);
+ m.position.set(x,FLOOR_Y+.35,z);
+ m.scale.set(s*(.7+Math.random()*.7),s*(.5+Math.random()*.5),s*(.7+Math.random()*.8));
+ m.rotation.set(Math.random()*2,Math.random()*2,Math.random()*2);
+ scene.add(m);
+}
+for(let i=0;i<65;i++){
+ const a=Math.random()*Math.PI*2,r=5+Math.random()*72;
+ rock(Math.cos(a)*r,-12-Math.random()*75,.35+Math.random()*2);
+}
+
+/* ---------- coral ---------- */
+function coral(x,z,s){
+ const g=new THREE.Group();
+ const mat=new THREE.MeshStandardMaterial({color:0x29504a,roughness:1});
+ for(let i=0;i<5+Math.floor(Math.random()*7);i++){
+  const h=.8+Math.random()*2.8;
+  const b=new THREE.Mesh(new THREE.CylinderGeometry(.045,.15,h,6),mat);
+  b.position.set((Math.random()-.5)*1.2,h/2,(Math.random()-.5)*1.2);
+  b.rotation.z=(Math.random()-.5)*.8;b.rotation.x=(Math.random()-.5)*.6;
+  g.add(b);
+ }
+ g.position.set(x,FLOOR_Y+.6,z);g.scale.setScalar(s);scene.add(g);
+}
+for(let i=0;i<28;i++)coral((Math.random()-.5)*105,-16-Math.random()*70,.5+Math.random()*1.3);
+
+/* ---------- fish silhouettes ---------- */
+const fishGroup=new THREE.Group();scene.add(fishGroup);
+const fishInfo=[];
+function fish(s){
+ const g=new THREE.Group(),mat=new THREE.MeshBasicMaterial({color:0x01080d,transparent:true,opacity:.62,side:THREE.DoubleSide});
+ const body=new THREE.Mesh(new THREE.SphereGeometry(1,16,8),mat);
+ body.scale.set(1.65,.55,.28);g.add(body);
+ const tail=new THREE.Mesh(new THREE.ConeGeometry(.65,1.35,3),mat);
+ tail.rotation.z=Math.PI/2;tail.position.x=-1.55;g.add(tail);
+ g.scale.setScalar(s);return g;
+}
+for(let i=0;i<30;i++){
+ const f=fish(.35+Math.random()*1);
+ f.position.set((Math.random()-.5)*48,-1-Math.random()*25,-8-Math.random()*88);
+ f.rotation.y=Math.random()>.5?0:Math.PI;
+ fishGroup.add(f);fishInfo.push({m:f,v:.004+Math.random()*.011,p:Math.random()*7});
+}
+
+/* ---------- particles ---------- */
+const N=3600,pos=new Float32Array(N*3);
+for(let i=0;i<N;i++){
+ pos[i*3]=(Math.random()-.5)*90;
+ pos[i*3+1]=4-Math.random()*40;
+ pos[i*3+2]=-Math.random()*110;
+}
+const pg=new THREE.BufferGeometry();
+pg.setAttribute("position",new THREE.BufferAttribute(pos,3));
+const pp=new THREE.PointsMaterial({color:0xa6e4e9,size:.045,transparent:true,opacity:.3,depthWrite:false});
+const particles=new THREE.Points(pg,pp);scene.add(particles);
+
+/* ---------- bubbles ---------- */
+const bubbles=new THREE.Group();scene.add(bubbles);
+for(let i=0;i<95;i++){
+ const b=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),new THREE.MeshBasicMaterial({color:0xc9f5f7,transparent:true,opacity:.18,depthWrite:false}));
+ b.position.set((Math.random()-.5)*65,-Math.random()*38,-8-Math.random()*100);
+ b.scale.setScalar(.5+Math.random()*1.8);
+ b.userData.v=.001+Math.random()*.0024;bubbles.add(b);
+}
+
+/* ---------- notes ---------- */
+const nc=document.createElement("canvas");nc.width=256;nc.height=256;
+const nctx=nc.getContext("2d");nctx.fillStyle="rgba(0,0,0,0)";nctx.fillRect(0,0,256,256);nctx.fillStyle="rgba(245,253,255,.8)";nctx.font="bold 110px Arial";nctx.textAlign="center";nctx.textBaseline="middle";nctx.fillText("♫",128,128);
+const nt=new THREE.CanvasTexture(nc),notes=new THREE.Group();scene.add(notes);
+for(let i=0;i<10;i++){
+ const n=new THREE.Sprite(new THREE.SpriteMaterial({map:nt,transparent:true,depthWrite:false}));
+ n.position.set((Math.random()-.5)*28,.5+Math.random()*1.7,-5-Math.random()*17);
+ n.scale.setScalar(.28+Math.random()*.5);n.userData.p=Math.random()*7;notes.add(n);
+}
+
+/* ---------- scroll ---------- */
+let target=0,progress=0;
+function readScroll(){
+ const max=document.documentElement.scrollHeight-innerHeight;
+ target=max>0?scrollY/max:0;
+}
+addEventListener("scroll",readScroll,{passive:true});readScroll();
+
+const hero=document.getElementById("heroPanel"),track=document.getElementById("trackPanel"),footer=document.getElementById("footerPanel"),hint=document.getElementById("hint"),pline=document.querySelector("#progress i");
+function ui(p){
+ hero.classList.toggle("active",p<.27);
+ track.classList.toggle("active",p>=.27&&p<.69);
+ footer.classList.toggle("active",p>=.69);
+ hint.style.opacity=p<.06?"1":"0";
+ pline.style.height=(p*100)+"%";
+}
+
+/* ---------- ANIMATION & RENDER LOOP ---------- */
+function animate(){
+ requestAnimationFrame(animate);
+ const t=clock.getElapsedTime();
+ progress+=(target-progress)*.055;
+
+ camera.position.y=5.2+progress*(FLOOR_Y-5.2);
+ camera.position.z=13-progress*18;
+ camera.position.x=Math.sin(t*.12)*(.08+progress*.4);
+ camera.rotation.x=-.025+progress*.04;
+
+ /* atmospheric color */
+ const c0=new THREE.Color(),surfaceC=new THREE.Color(0x74a9b5),blue=new THREE.Color(0x07516a),deep=new THREE.Color(0x02283a),abyss=new THREE.Color(0x01090f);
+ if(progress<.16)c0.copy(new THREE.Color(0x527d91)).lerp(surfaceC,progress/.16);
+ else if(progress<.48)c0.copy(surfaceC).lerp(blue,(progress-.16)/.32);
+ else if(progress<.78)c0.copy(blue).lerp(deep,(progress-.48)/.30);
+ else c0.copy(deep).lerp(abyss,(progress-.78)/.22);
+ scene.background=c0;
+ scene.fog=new THREE.FogExp2(c0,.0013+progress*.0042);
+
+ sky.material.opacity=Math.max(0,1-progress*6.5);
+ sky.visible=progress<.18;
+ sunSprite.visible=progress<.19;
+ surfaceMat.uniforms.time.value=t;
+ surfaceMat.uniforms.depth.value=progress;
+ surface.material.opacity=Math.max(0,.72-progress*.92);
+
+ hemi.intensity=1.0-progress*.83;
+ sunLight.intensity=0.85*Math.max(0,1-progress*1.5);
+
+ notes.visible=progress<.24;
+ notes.children.forEach((n,i)=>{n.position.y+=Math.sin(t*.45+n.userData.p)*.001;n.position.x+=Math.sin(t*.18+n.userData.p)*.0006;n.material.opacity=Math.max(0,.8-progress*4)});
+
+ const a=particles.geometry.attributes.position.array;
+ for(let i=0;i<N;i++){a[i*3+1]+=.001;if(a[i*3+1]>5)a[i*3+1]=-40}
+ particles.geometry.attributes.position.needsUpdate=true;
+ particles.material.opacity=.16+progress*.22;
+
+ bubbles.children.forEach(b=>{b.position.y+=b.userData.v;b.position.x+=Math.sin(t*.4+b.position.z)*.0005;if(b.position.y>5)b.position.y=-39;b.material.opacity=.12+progress*.13});
+
+ fishInfo.forEach(d=>{d.m.position.x+=d.v;d.m.position.y+=Math.sin(t*.5+d.p)*.0013;d.m.rotation.z=Math.sin(t*.7+d.p)*.03;if(d.m.position.x>43)d.m.position.x=-43});
+
+ /* Render 2D Canvas Water Ripples Overlay */
+ rctx.clearRect(0, 0, rippleCanvas.width, rippleCanvas.height);
+ for(let i = canvasRipples.length - 1; i >= 0; i--){
+   canvasRipples[i].update();
+   canvasRipples[i].draw(rctx);
+   if(canvasRipples[i].opacity <= 0){
+     canvasRipples.splice(i, 1);
+   }
+ }
+
+ ui(progress);
+ renderer.render(scene,camera);
+}
+animate();
+
+addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ resizeRippleCanvas();
+});
+})();
+</script>
+</body>
+</html>
