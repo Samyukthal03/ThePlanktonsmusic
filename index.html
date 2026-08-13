@@ -12,11 +12,11 @@ body{background:#02070b;color:var(--white);overflow-x:hidden;font-family:Inter,u
 
 /* 2D Ripple Overlay Canvas sitting directly over the 3D Ocean */
 #ripple-overlay{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:2;pointer-events:none}
-#ocean{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;touch-action:none}
+#ocean{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;pointer-events:none}
 
 .scroll-space{height:315vh;position:relative;z-index:1;pointer-events:none}
 .content{position:fixed;inset:0;z-index:5;pointer-events:none}
-.panel{position:absolute;width:min(720px,calc(100vw - 44px));opacity:0;visibility:hidden;transition:opacity .7s ease,transform .9s cubic-bezier(.2,.8,.2,1),visibility .7s ease;pointer-events:none}
+.panel{position:absolute;width:min(720px,calc(100vw - 44px));opacity:0;visibility:hidden;transition:opacity .7s ease,transform .9s cubic-bezier(.2,.8,.2,1),visibility .7s ease;pointer-events:none;will-change:transform,opacity}
 .panel.active{opacity:1;visibility:visible;pointer-events:auto}
 .brand-img{display:block;width:min(480px,85vw);height:auto;margin-bottom:24px;filter:drop-shadow(0 0 12px rgba(120,233,255,0.35))}
 .hero{left:7vw;top:53%;transform:translate3d(0,48px,0)}
@@ -49,7 +49,7 @@ h2{font-size:clamp(52px,7vw,96px);line-height:.9;letter-spacing:-.065em}
 #progress{position:fixed;right:24px;top:50%;width:1px;height:85px;transform:translateY(-50%);background:rgba(255,255,255,.12);z-index:10}
 #progress i{display:block;width:1px;height:0;background:var(--cyan)}
 .depth-label{position:fixed;right:24px;top:calc(50% + 53px);z-index:10;color:rgba(230,250,255,.35);font-size:8px;letter-spacing:.22em;writing-mode:vertical-rl;text-transform:uppercase}
-@media(max-width:700px){.scroll-space{height:300vh}.hero,.footer{left:22px}.hero{top:55%}.track{width:calc(100vw - 28px)}.track-card{padding:26px 20px}.footer{bottom:7vh}#progress,.depth-label{display:none}.scroll-hint{bottom:21px}}
+@media(max-width:700px){.scroll-space{height:250vh}.hero,.footer{left:22px}.hero{top:55%}.track{width:calc(100vw - 28px)}.track-card{padding:26px 20px}.footer{bottom:7vh}#progress,.depth-label{display:none}.scroll-hint{bottom:21px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.scroll-line:after{animation:none}}
 </style>
 </head>
@@ -108,6 +108,8 @@ h2{font-size:clamp(52px,7vw,96px);line-height:.9;letter-spacing:-.065em}
 <script>
 (()=>{
 "use strict";
+
+const isMobile = window.innerWidth <= 700;
 
 /* ---------- 1. 2D OVERLAY RIPPLE CANVAS SETUP ---------- */
 const rippleCanvas = document.getElementById("ripple-overlay");
@@ -168,8 +170,8 @@ window.addEventListener("pointerdown", (e) => {
 
 /* ---------- 2. THREE.JS 3D OCEAN SCENE ---------- */
 const canvas=document.getElementById("ocean");
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const renderer=new THREE.WebGLRenderer({canvas,antialias:!isMobile,powerPreference:"high-performance"});
+renderer.setPixelRatio(isMobile ? 1 : Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 
@@ -183,65 +185,46 @@ scene.add(surfaceGroup);
 
 /* ---------- realistic sky (smooth sun) ---------- */
 const skyCanvas=document.createElement("canvas");
-skyCanvas.width=1024; skyCanvas.height=1024;
+skyCanvas.width=512; skyCanvas.height=512;
 const sctx=skyCanvas.getContext("2d");
-const grad=sctx.createLinearGradient(0,0,0,1024);
+const grad=sctx.createLinearGradient(0,0,0,512);
 grad.addColorStop(0,"#122f46");
 grad.addColorStop(.28,"#376f89");
 grad.addColorStop(.52,"#82aeb3");
 grad.addColorStop(.67,"#b8c5b9");
 grad.addColorStop(1,"#719ca3");
-sctx.fillStyle=grad;sctx.fillRect(0,0,1024,1024);
+sctx.fillStyle=grad;sctx.fillRect(0,0,512,512);
 
-const sunGlow=sctx.createRadialGradient(690,260,5,690,260,260);
+const sunGlow=sctx.createRadialGradient(345,130,2,345,130,130);
 sunGlow.addColorStop(0,"rgba(255,248,211,.3)");
 sunGlow.addColorStop(.15,"rgba(255,245,202,.15)");
 sunGlow.addColorStop(.5,"rgba(255,237,185,.03)");
 sunGlow.addColorStop(1,"rgba(255,230,180,0)");
-sctx.fillStyle=sunGlow;sctx.fillRect(0,0,1024,1024);
+sctx.fillStyle=sunGlow;sctx.fillRect(0,0,512,512);
 const skyTexture=new THREE.CanvasTexture(skyCanvas);
 
-const skyGeo=new THREE.SphereGeometry(150,32,16);
+const skyGeo=new THREE.SphereGeometry(150,24,12);
 const skyMat=new THREE.MeshBasicMaterial({map:skyTexture,side:THREE.BackSide,depthWrite:false});
 const sky=new THREE.Mesh(skyGeo,skyMat);
 scene.add(sky);
 
 /* ---------- sun sprite ---------- */
 const sunSpriteCanvas=document.createElement("canvas");
-sunSpriteCanvas.width=sunSpriteCanvas.height=256;
+sunSpriteCanvas.width=sunSpriteCanvas.height=128;
 const sunCtx=sunSpriteCanvas.getContext("2d");
-const sg=sunCtx.createRadialGradient(128,128,0,128,128,128);
+const sg=sunCtx.createRadialGradient(64,64,0,64,64,64);
 sg.addColorStop(0,"rgba(255,249,218,.3)");
 sg.addColorStop(.2,"rgba(255,244,204,.15)");
 sg.addColorStop(1,"rgba(255,236,180,0)");
-sunCtx.fillStyle=sg;sunCtx.fillRect(0,0,256,256);
+sunCtx.fillStyle=sg;sunCtx.fillRect(0,0,128,128);
 const sunTex=new THREE.CanvasTexture(sunSpriteCanvas);
 const sunSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:sunTex,transparent:true,depthWrite:false}));
 sunSprite.position.set(-24,18,-45);
 sunSprite.scale.setScalar(6);
 scene.add(sunSprite);
 
-/* ---------- subtle atmospheric horizon ---------- */
-const horizonCanvas=document.createElement("canvas");
-horizonCanvas.width=1024; horizonCanvas.height=512;
-const hctx=horizonCanvas.getContext("2d");
-const hg=hctx.createLinearGradient(0,0,0,512);
-hg.addColorStop(0,"rgba(220,239,234,0)");
-hg.addColorStop(.48,"rgba(204,226,224,.035)");
-hg.addColorStop(.72,"rgba(190,218,218,.075)");
-hg.addColorStop(1,"rgba(120,178,185,0)");
-hctx.fillStyle=hg; hctx.fillRect(0,0,1024,512);
-const horizonTex=new THREE.CanvasTexture(horizonCanvas);
-const horizonMat=new THREE.SpriteMaterial({
-  map:horizonTex,transparent:true,depthWrite:false,opacity:.75
-});
-const horizon=new THREE.Sprite(horizonMat);
-horizon.position.set(0,1.7,-65);
-horizon.scale.set(120,32,1);
-scene.add(horizon);
-
 /* ---------- ocean surface shader ---------- */
-const surfaceGeo=new THREE.PlaneGeometry(190,190,160,160);
+const surfaceGeo=new THREE.PlaneGeometry(190,190,isMobile ? 80 : 160, isMobile ? 80 : 160);
 const surfaceMat=new THREE.ShaderMaterial({
 transparent:true,side:THREE.DoubleSide,depthWrite:false,
 uniforms:{time:{value:0},depth:{value:0}},
@@ -285,7 +268,7 @@ surface.position.y=.15;
 scene.add(surface);
 
 /* ---------- underwater floor ---------- */
-const floorGeo=new THREE.PlaneGeometry(180,180,120,120);
+const floorGeo=new THREE.PlaneGeometry(180,180,isMobile ? 60 : 120, isMobile ? 60 : 120);
 const floorMat=new THREE.MeshStandardMaterial({color:0x211d17,roughness:.96,metalness:0});
 const floor=new THREE.Mesh(floorGeo,floorMat);
 floor.rotation.x=-Math.PI/2;
@@ -307,44 +290,31 @@ sunLight.position.set(-25,35,15);scene.add(sunLight);
 /* ---------- rocks ---------- */
 const rockMat=new THREE.MeshStandardMaterial({color:0x171a18,roughness:1});
 function rock(x,z,s){
- const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,2),rockMat);
+ const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),rockMat);
  m.position.set(x,FLOOR_Y+.35,z);
  m.scale.set(s*(.7+Math.random()*.7),s*(.5+Math.random()*.5),s*(.7+Math.random()*.8));
  m.rotation.set(Math.random()*2,Math.random()*2,Math.random()*2);
  scene.add(m);
 }
-for(let i=0;i<65;i++){
+const rockCount = isMobile ? 30 : 65;
+for(let i=0;i<rockCount;i++){
  const a=Math.random()*Math.PI*2,r=5+Math.random()*72;
  rock(Math.cos(a)*r,-12-Math.random()*75,.35+Math.random()*2);
 }
-
-/* ---------- coral ---------- */
-function coral(x,z,s){
- const g=new THREE.Group();
- const mat=new THREE.MeshStandardMaterial({color:0x29504a,roughness:1});
- for(let i=0;i<5+Math.floor(Math.random()*7);i++){
-  const h=.8+Math.random()*2.8;
-  const b=new THREE.Mesh(new THREE.CylinderGeometry(.045,.15,h,6),mat);
-  b.position.set((Math.random()-.5)*1.2,h/2,(Math.random()-.5)*1.2);
-  b.rotation.z=(Math.random()-.5)*.8;b.rotation.x=(Math.random()-.5)*.6;
-  g.add(b);
- }
- g.position.set(x,FLOOR_Y+.6,z);g.scale.setScalar(s);scene.add(g);
-}
-for(let i=0;i<28;i++)coral((Math.random()-.5)*105,-16-Math.random()*70,.5+Math.random()*1.3);
 
 /* ---------- fish silhouettes ---------- */
 const fishGroup=new THREE.Group();scene.add(fishGroup);
 const fishInfo=[];
 function fish(s){
  const g=new THREE.Group(),mat=new THREE.MeshBasicMaterial({color:0x01080d,transparent:true,opacity:.62,side:THREE.DoubleSide});
- const body=new THREE.Mesh(new THREE.SphereGeometry(1,16,8),mat);
+ const body=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),mat);
  body.scale.set(1.65,.55,.28);g.add(body);
  const tail=new THREE.Mesh(new THREE.ConeGeometry(.65,1.35,3),mat);
  tail.rotation.z=Math.PI/2;tail.position.x=-1.55;g.add(tail);
  g.scale.setScalar(s);return g;
 }
-for(let i=0;i<30;i++){
+const fishCount = isMobile ? 12 : 30;
+for(let i=0;i<fishCount;i++){
  const f=fish(.35+Math.random()*1);
  f.position.set((Math.random()-.5)*48,-1-Math.random()*25,-8-Math.random()*88);
  f.rotation.y=Math.random()>.5?0:Math.PI;
@@ -352,7 +322,7 @@ for(let i=0;i<30;i++){
 }
 
 /* ---------- particles ---------- */
-const N=3600,pos=new Float32Array(N*3);
+const N=isMobile ? 1200 : 3600,pos=new Float32Array(N*3);
 for(let i=0;i<N;i++){
  pos[i*3]=(Math.random()-.5)*90;
  pos[i*3+1]=4-Math.random()*40;
@@ -362,25 +332,6 @@ const pg=new THREE.BufferGeometry();
 pg.setAttribute("position",new THREE.BufferAttribute(pos,3));
 const pp=new THREE.PointsMaterial({color:0xa6e4e9,size:.045,transparent:true,opacity:.3,depthWrite:false});
 const particles=new THREE.Points(pg,pp);scene.add(particles);
-
-/* ---------- bubbles ---------- */
-const bubbles=new THREE.Group();scene.add(bubbles);
-for(let i=0;i<95;i++){
- const b=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),new THREE.MeshBasicMaterial({color:0xc9f5f7,transparent:true,opacity:.18,depthWrite:false}));
- b.position.set((Math.random()-.5)*65,-Math.random()*38,-8-Math.random()*100);
- b.scale.setScalar(.5+Math.random()*1.8);
- b.userData.v=.001+Math.random()*.0024;bubbles.add(b);
-}
-
-/* ---------- notes ---------- */
-const nc=document.createElement("canvas");nc.width=256;nc.height=256;
-const nctx=nc.getContext("2d");nctx.fillStyle="rgba(0,0,0,0)";nctx.fillRect(0,0,256,256);nctx.fillStyle="rgba(245,253,255,.8)";nctx.font="bold 110px Arial";nctx.textAlign="center";nctx.textBaseline="middle";nctx.fillText("♫",128,128);
-const nt=new THREE.CanvasTexture(nc),notes=new THREE.Group();scene.add(notes);
-for(let i=0;i<10;i++){
- const n=new THREE.Sprite(new THREE.SpriteMaterial({map:nt,transparent:true,depthWrite:false}));
- n.position.set((Math.random()-.5)*28,.5+Math.random()*1.7,-5-Math.random()*17);
- n.scale.setScalar(.28+Math.random()*.5);n.userData.p=Math.random()*7;notes.add(n);
-}
 
 /* ---------- scroll ---------- */
 let target=0,progress=0;
@@ -396,14 +347,14 @@ function ui(p){
  track.classList.toggle("active",p>=.27&&p<.69);
  footer.classList.toggle("active",p>=.69);
  hint.style.opacity=p<.06?"1":"0";
- pline.style.height=(p*100)+"%";
+ if(pline) pline.style.height=(p*100)+"%";
 }
 
 /* ---------- ANIMATION & RENDER LOOP ---------- */
 function animate(){
  requestAnimationFrame(animate);
  const t=clock.getElapsedTime();
- progress+=(target-progress)*.055;
+ progress+=(target-progress)*(isMobile ? .1 : .055);
 
  camera.position.y=5.2+progress*(FLOOR_Y-5.2);
  camera.position.z=13-progress*18;
@@ -429,15 +380,10 @@ function animate(){
  hemi.intensity=1.0-progress*.83;
  sunLight.intensity=0.85*Math.max(0,1-progress*1.5);
 
- notes.visible=progress<.24;
- notes.children.forEach((n,i)=>{n.position.y+=Math.sin(t*.45+n.userData.p)*.001;n.position.x+=Math.sin(t*.18+n.userData.p)*.0006;n.material.opacity=Math.max(0,.8-progress*4)});
-
  const a=particles.geometry.attributes.position.array;
  for(let i=0;i<N;i++){a[i*3+1]+=.001;if(a[i*3+1]>5)a[i*3+1]=-40}
  particles.geometry.attributes.position.needsUpdate=true;
  particles.material.opacity=.16+progress*.22;
-
- bubbles.children.forEach(b=>{b.position.y+=b.userData.v;b.position.x+=Math.sin(t*.4+b.position.z)*.0005;if(b.position.y>5)b.position.y=-39;b.material.opacity=.12+progress*.13});
 
  fishInfo.forEach(d=>{d.m.position.x+=d.v;d.m.position.y+=Math.sin(t*.5+d.p)*.0013;d.m.rotation.z=Math.sin(t*.7+d.p)*.03;if(d.m.position.x>43)d.m.position.x=-43});
 
@@ -460,7 +406,7 @@ addEventListener("resize",()=>{
  camera.aspect=innerWidth/innerHeight;
  camera.updateProjectionMatrix();
  renderer.setSize(innerWidth,innerHeight);
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ renderer.setPixelRatio(isMobile ? 1 : Math.min(devicePixelRatio, 2));
  resizeRippleCanvas();
 });
 })();
