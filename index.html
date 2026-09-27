@@ -493,44 +493,20 @@ const WATER_VERT = `
 uniform float uTime;
 uniform float uAmp;
 varying vec3 vWorld;
-varying vec3 vN;
-varying float vCrest;
 varying float vDist;
-
-void addWave(vec2 p, vec2 dir, float wl, float amp, float dist,
-             inout float h, inout vec2 g, inout float cs, inout float ws){
-  float k = 6.2831853 / wl;
-  float sp = sqrt(9.81 * k) * 0.55;
-  float ph = k * dot(dir, p) - sp * uTime;
-  float s = sin(ph);
-  float e = exp(s - 1.0);
-  float fade = 1.0 - smoothstep(wl * 4.0, wl * 9.5, dist);
-  float a = amp * fade;
-  h  += a * (e - 0.4);
-  g  += a * e * cos(ph) * k * dir;
-  cs += a * e;
-  ws += a;
-}
 
 void main(){
   vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz;
   float dist = length(wp - cameraPosition);
-  vec2 p = wp.xz;
-  float h = 0.0;
-  vec2 g = vec2(0.0);
-  float cs = 0.0;
-  float ws = 0.0;
-  addWave(p, normalize(vec2( 0.12, 1.00)), 24.0, 0.40, dist, h, g, cs, ws);
-  addWave(p, normalize(vec2(-0.45, 1.00)), 15.0, 0.24, dist, h, g, cs, ws);
-  addWave(p, normalize(vec2( 0.70, 0.75)),  9.5, 0.13, dist, h, g, cs, ws);
-  addWave(p, normalize(vec2(-0.85, 0.45)),  6.2, 0.07, dist, h, g, cs, ws);
-  addWave(p, normalize(vec2( 0.35,-0.90)),  4.4, 0.04, dist, h, g, cs, ws);
 
-  float scale = uAmp * 0.55;
-  wp.y += h * scale;
-  vec2 gs = g * scale;
-  vN = normalize(vec3(-gs.x, 1.0, -gs.y));
-  vCrest = ws > 0.001 ? cs / ws : 0.0;
+  /* Broad, tiny swell only so the surface still reads as an ocean.
+     Two vertex waves, no ripple simulation and no normals/reflections. */
+  float nearFade = 1.0 - smoothstep(220.0, 900.0, dist);
+  float swell =
+      sin(wp.x * 0.018 + wp.z * 0.026 + uTime * 0.22) * 0.10 +
+      sin(wp.x * -0.012 + wp.z * 0.017 - uTime * 0.16) * 0.07;
+  wp.y += swell * nearFade * min(uAmp, 1.0);
+
   vWorld = wp;
   vDist = dist;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -540,128 +516,52 @@ void main(){
 /* Water fragment: fresnel reflection of the starry sky + bioluminescence.
    Bioluminescence = glowing contour filaments, crest foam, and clustered twinkling plankton sparks. */
 const WATER_FRAG = `
-${GLSL_NOISE}
-${GLSL_SKY}
-uniform float uAmp;
+uniform float uTime;
 uniform float uBio;
-uniform float uReflect;
+uniform float uUnderwater;
+uniform float uStars;
 varying vec3 vWorld;
-varying vec3 vN;
-varying float vCrest;
 varying float vDist;
 
-float ripple(vec2 p){
-  return vnoise(p * 1.3 + vec2(0.0, uTime * 0.35)) * 0.65
-       + vnoise(p * 2.6 + vec2(uTime * 0.22, -uTime * 0.30)) * 0.35;
-}
-
-vec3 bioCol(float i){
-  vec3 deep = vec3(0.00, 0.10, 0.90);
-  vec3 mid  = vec3(0.02, 0.45, 1.00);
-  vec3 hot  = vec3(0.45, 0.92, 1.00);
-  vec3 c = mix(deep, mid, smoothstep(0.0, 0.6, i));
-  return mix(c, hot, smoothstep(0.7, 1.6, i));
-}
-
-/* one layer of plankton sparks on a stretched world-space grid */
-float sparkle(vec2 p, vec2 aniso, float scale, float rad, float thr){
-  vec2 g = p * aniso * scale;
-  vec2 id = floor(g);
-  vec2 f = fract(g) - 0.5;
-  float h = hash21(id);
-  vec2 o = (vec2(hash21(id + 7.13), hash21(id + 19.71)) - 0.5) * 0.4;
-  float d = length(f - o);
-  float on = step(h, thr);
-  float ph = hash21(id + 3.7);
-  float t = 0.5 + 0.5 * sin(uTime * (1.2 + 2.5 * ph) + ph * 40.0);
-  return on * (1.0 - smoothstep(0.0, rad, d)) * (0.25 + 0.75 * t * t);
+float cheapHash(vec2 p){
+  return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453);
 }
 
 void main(){
-  vec3 V = normalize(cameraPosition - vWorld);
   vec2 p = vWorld.xz;
   float dist = vDist;
 
-  /* fine ripples: fade with distance and vanish as the sea calms */
-  float rf = (1.0 - smoothstep(16.0, 95.0, dist)) * mix(0.10, 1.0, uAmp);
-  vec2 rp = p * vec2(1.0, 1.6);
-  float e = 0.05;
-  float r0 = ripple(rp);
-  float rx = ripple(rp + vec2(e, 0.0));
-  float rz = ripple(rp + vec2(0.0, e));
-  vec2 gr = vec2(rx - r0, rz - r0) / e;
-  vec3 N = normalize(vN + vec3(gr.x * 0.30, 0.0, gr.y * 0.90) * 0.035 * rf);
+  /* Deep midnight-blue real ocean surface. */
+  float horizon = smoothstep(80.0, 1500.0, dist);
+  vec3 nearSea = vec3(0.0015, 0.014, 0.032);
+  vec3 farSea  = vec3(0.0030, 0.026, 0.060);
+  vec3 col = mix(nearSea, farSea, horizon);
 
-  /* reflection of the night sky */
-  float cosT = clamp(dot(N, V), 0.0, 1.0);
-  float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
-  F = clamp(F * uReflect, 0.0, 1.0);
-  vec3 R = reflect(-V, N);
-  R.y = abs(R.y);
-  R = normalize(R);
-  vec3 sky = skyColor(R, 0.0);
+  /* Cheap bioluminescence: broad cyan ribbons + sparse glow cells.
+     No FBM, no ripple normals, no reflection, no foam, no sparkle passes. */
+  float t = uTime * 0.055;
+  float ribbonA = sin(p.x * 0.055 + p.y * 0.0 + p.y + p.y + p.z * 0.025 + t);
+  float ribbonB = sin(p.x * -0.032 + p.z * 0.047 - t * 0.72 + 1.8);
+  float ribbon = smoothstep(1.12, 1.72, ribbonA + ribbonB);
 
-  vec3 body = vec3(0.0005, 0.0024, 0.0060);
-  vec3 col = body * (1.0 - F) + sky * F;
+  vec2 cell = floor(p * 0.065);
+  float h = cheapHash(cell);
+  float patch = smoothstep(0.80, 0.96, h) * (0.58 + 0.42 * sin(t * 2.0 + h * 6.2831));
+  float nearGlow = 1.0 - smoothstep(240.0, 900.0, dist);
+  float bio = (ribbon * 0.72 + patch * 0.42) * nearGlow * uBio;
 
-  /* seen from below, the surface becomes a dim rippling ceiling of the water column */
-  float under = step(cameraPosition.y, vWorld.y);
-  if (under > 0.5 && uUnderwater > 0.001){
-    vec3 vd = -V;
-    vec3 wc = waterColumn(vd);
-    float lit = 1.0 - smoothstep(0.0, 0.9, uDepth);
-    float sh = pow(clamp(r0 * 1.7 - 0.45, 0.0, 1.0), 2.0);
-    wc += vec3(0.010, 0.050, 0.075) * sh * lit * smoothstep(0.05, 0.5, vd.y) * exp(-dist * 0.012);
-    wc += marineSnow(vd, dist) * 0.55 * (1.0 - uStars);
-    col = mix(col, wc, uUnderwater);
+  vec3 cyan = vec3(0.00, 0.58, 1.00);
+  vec3 hot  = vec3(0.28, 0.96, 1.00);
+  col += mix(cyan, hot, ribbon) * bio * 0.72;
+
+  /* From below, keep it dark blue instead of calculating a water-column simulation. */
+  if (uUnderwater > 0.01){
+    vec3 under = vec3(0.0005, 0.010, 0.025);
+    col = mix(col, under, uUnderwater);
   }
 
-  /* bioluminescence */
-  if (uBio > 0.003){
-    vec2 q = p * 0.13 + vec2(uTime * 0.008, -uTime * 0.05);
-    float wq = fbm2(q * 1.6 + 4.3);
-    float n1 = fbm2(q + wq * 1.5);
-    float aa = fwidth(n1);
-    float dn = min(abs(n1 - 0.50), abs(n1 - 0.41) + 0.006);
-    float aaFade = 1.0 - smoothstep(0.025, 0.11, aa);
-    float band = (1.0 - smoothstep(aa * 0.4, aa * 1.6 + 0.0015, dn)) * aaFade;
-    float halo = exp(-dn / max(aa * 7.0, 0.004)) * aaFade;
-
-    float zone = smoothstep(0.30, 0.68, fbm2b(p * 0.03 + vec2(5.0, uTime * 0.004)));
-    float zoneM = mix(0.30, 1.0, zone);
-
-    float waveE = smoothstep(0.08, 0.6, uAmp);
-    float crest = smoothstep(0.50, 0.80, vCrest) * waveE;
-    float breakup = smoothstep(0.32, 0.70, fbm2b(p * 0.55 + vec2(uTime * 0.05, uTime * 0.09)));
-    float foam = crest * mix(0.35, 1.0, breakup);
-
-    float lineI = band * zoneM;
-    float glowI = max(halo * zoneM, foam * 0.6);
-    float thr = clamp(glowI * 1.1 + foam * 0.5, 0.0, 1.0);
-
-    float sp1 = sparkle(p, vec2(1.0, 0.40), 8.0, 0.30, thr) * (1.0 - smoothstep(14.0, 44.0, dist));
-    float sp2 = sparkle(p, vec2(1.0, 0.20), 2.4, 0.22, thr)
-              * smoothstep(8.0, 24.0, dist) * (1.0 - smoothstep(60.0, 160.0, dist));
-    float sp3 = sparkle(p + 17.0, vec2(1.0, 0.09), 0.8, 0.22, thr)
-              * smoothstep(50.0, 110.0, dist) * (1.0 - smoothstep(300.0, 800.0, dist));
-    float spark = sp1 + sp2 * 0.9 + sp3 * 0.8;
-
-    vec3 bio = bioCol(lineI + foam) * (lineI * 1.9 + foam * 1.3);
-    bio += bioCol(glowI * 0.5) * glowI * 0.38;
-    bio += vec3(0.32, 0.86, 1.0) * spark * 2.4;
-    bio *= uBio * (1.0 - smoothstep(250.0, 1000.0, dist));
-    bio *= mix(1.0, smoothstep(0.08, 0.45, -V.y), under * uUnderwater);
-    col += bio;
-  }
-
-  /* melt into the horizon glow so water and sky meet seamlessly */
-  float fogT = smoothstep(500.0, 2300.0, dist) * (1.0 - uUnderwater);
-  col = mix(col, skyBase(0.0), fogT);
-
-  /* third stage: the water dissolves into exactly what the dome behind it is showing */
-  if (uStars > 0.001) col = mix(col, skyColor(-V, 1.0), uStars);
-
-  col = finish(col) + (hash21(gl_FragCoord.xy + fract(uTime) * 71.0) - 0.5) / 255.0;
+  /* The existing sky takes over visually during the final star section. */
+  col *= (1.0 - uStars);
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -677,8 +577,8 @@ function buildWaterGeometry(){
      where the eye is close and cheap out toward the horizon */
   const perfMobile = window.matchMedia('(max-width: 820px)').matches;
   /* Same ocean shape, fewer samples on small screens where the extra tessellation is not resolvable. */
-  const rings = perfMobile ? 224 : 300;
-  const segs  = perfMobile ? 144 : 184;
+  const rings = perfMobile ? 72 : 104;
+  const segs  = perfMobile ? 64 : 88;
   const r0 = 0.35, R = 2500, sector = 3.67;
   const lq = Math.log(R / r0) / (rings - 1);
   const pos = new Float32Array(rings * (segs + 1) * 3);
@@ -748,7 +648,7 @@ function setupGL(){
     buildWaterGeometry(),
     new THREE.ShaderMaterial({
       uniforms: U, vertexShader: WATER_VERT, fragmentShader: WATER_FRAG,
-      side: THREE.DoubleSide, extensions: { derivatives: true }
+      side: THREE.DoubleSide
     })
   );
   water.frustumCulled = false;
@@ -756,7 +656,7 @@ function setupGL(){
   scene.add(water);
 
   const dpr = window.devicePixelRatio || 1;
-  pixelRatio = Math.min(dpr, window.innerWidth < 820 ? 1.0 : 1.35);
+  pixelRatio = Math.min(dpr, window.innerWidth < 820 ? 0.85 : 1.20);
   renderer.setPixelRatio(pixelRatio);
   resize();
 }
@@ -794,7 +694,7 @@ let pageVisible = !document.hidden;
 let lastPaint = 0;
 let scrollProgress = 0;
 const isPhone = window.matchMedia('(max-width: 820px)').matches;
-let targetFrameMs = isPhone ? 1000 / 50 : 0;
+let targetFrameMs = isPhone ? 1000 / 30 : 0;
 
 document.addEventListener('visibilitychange', function(){
   pageVisible = !document.hidden;
@@ -843,11 +743,11 @@ function frame(now){
     slow += raw; counted++;
     if (counted >= 50){
       const avg = slow / counted;
-      if (avg > 0.027 && pixelRatio > 0.70){
-        pixelRatio = Math.max(0.70, pixelRatio - 0.10);
+      if (avg > 0.040 && pixelRatio > 0.65){
+        pixelRatio = Math.max(0.65, pixelRatio - 0.10);
         resize();
-      } else if (avg < 0.018 && pixelRatio < (isPhone ? 1.0 : 1.35)){
-        pixelRatio = Math.min(isPhone ? 1.0 : 1.35, pixelRatio + 0.05);
+      } else if (avg < 0.026 && pixelRatio < (isPhone ? 0.85 : 1.20)){
+        pixelRatio = Math.min(isPhone ? 0.85 : 1.20, pixelRatio + 0.05);
         resize();
       }
       slow = 0; counted = 0;
