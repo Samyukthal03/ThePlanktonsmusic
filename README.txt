@@ -1,12 +1,12 @@
-# ThePlanktons 
+ThePlanktons 
 
-### Our Music
+Our Music
 
-**Indha Nodi** — a song composed and written by Thendral.
+Indha Nodi — a song composed and written by Thendral.
 
 This is only the beginning. More music, more stories, and more little worlds are on their way.
 
-### Find Us
+ Find Us
 
  [Official Website](https://theplanktonsmusic.com)
 
