@@ -1,9 +1,19 @@
-ThePlanktons V9 — OFFLINE WEBSITE
+# ThePlanktons 
 
-Extract this ZIP, then double-click index.html on Windows. No server, Node, or internet connection is required for the website animations. Streaming links require internet.
+### Our Music
 
-Changes: purple SplashCursor, wide responsive PillNav-inspired top navigation, two-column music releases (Indha Nodi and Coming Soon), responsive mobile stacking, social placeholders in the closing section.
+**Indha Nodi** — a song composed and written by Thendral.
 
-Social links are placeholders until you provide the URLs. To activate later, replace the placeholders with real links.
+This is only the beginning. More music, more stories, and more little worlds are on their way.
 
-V10: Song listening links moved above the jellyfish. Footer now includes ThePlanktons Instagram, Thendral artist Instagram, X, YouTube, and Spotify.
+### Find Us
+
+ [Official Website](https://theplanktonsmusic.com)
+
+ [Spotify](https://open.spotify.com/artist/2ZL7hna1tFP96Ggbt090Su)
+
+ [YouTube](https://youtube.com/@theplanktonsmusic)
+
+ [Instagram](https://www.instagram.com/theplanktonsmusic)
+
+---
